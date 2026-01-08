@@ -1,9 +1,8 @@
 from isaaclab.utils import configclass
 
 from robotlib.beyondMimic.robots.g1 import G1_ACTION_SCALE, G1_CYLINDER_CFG
-from .rsl_rl_ppo_cfg import LOW_FREQ_SCALE
 from ...tracking_env_cfg import TrackingEnvCfg
-
+from amp_tasks.amp_task_demo_data_cfg import file_soccer_shoot, file_punch
 
 @configclass
 class G1FlatEnvCfg(TrackingEnvCfg):
@@ -31,7 +30,7 @@ class G1FlatEnvCfg(TrackingEnvCfg):
         ]
         # self.observations.policy.projected_gravity = None
         self.commands.motion.debug_vis = False
-        self.commands.motion.motion_file = "data/demo/punch_000.npz"
+        self.commands.motion.motion_file = file_punch
 
 @configclass
 class G1FlatNoRelaEnvCfg(G1FlatEnvCfg):
@@ -49,9 +48,3 @@ class G1FlatWoStateEstimationEnvCfg(G1FlatEnvCfg):
         self.observations.policy.motion_anchor_pos_b = None
         self.observations.policy.base_lin_vel = None
         
-@configclass
-class G1FlatLowFreqEnvCfg(G1FlatEnvCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.decimation = round(self.decimation / LOW_FREQ_SCALE)
-        self.rewards.action_rate_l2.weight *= LOW_FREQ_SCALE

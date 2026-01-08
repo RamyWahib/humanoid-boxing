@@ -27,9 +27,9 @@ python scripts/setup_vscode.py
 
 Training can be launched with:
 ```bash
-python scripts/factoryIsaac/train.py --task AMPG1_Basic --headless
-# python scripts/factoryIsaac/train.py --task AMPG1_Soft --headless
-# python scripts/factoryIsaac/train.py --task AMPG1_Hard --headless
+python scripts/factoryIsaac/train.py --task beyondAMP-DemoPunch-G1-BasicAMP --headless
+# python scripts/factoryIsaac/train.py --task beyondAMP-DemoPunch-G1-SoftAMPTrack --headless
+# python scripts/factoryIsaac/train.py --task beyondAMP-DemoPunch-G1-HardAMPTrack --headless
 ```
 
 To evaluate or visualize a trained checkpoint:
@@ -37,9 +37,9 @@ To evaluate or visualize a trained checkpoint:
 python scripts/factoryIsaac/play.py --headless --target <path to your ckpt.pt> --video --num_envs 32
 ```
 
-|  AMP Baisc Style (3k)| Motion Tracking (30k) |
-| :------------------------ | :---------------------------- |
-| <img src="data/demo/amp.gif" alt="3k" style="max-height: 200px; width: auto;"> | <img src="data/demo/tracking.gif" alt="30k" style="max-height: 200px; width: auto;"> |
+|  AMP Punch (3k)     | Motion Tracking Punck (30k)         | AMP Dog Move | AMP Knee Walk |
+| :------------------------ | :---------------------------- |:------------ |:------------- |
+| <img src="data/demo/punch/amp.gif" alt="3k" style="max-height: 200px; width: auto;"> | <img src="data/demo/punch/tracking.gif" alt="30k" style="max-height: 200px; width: auto;"> | <img src="data/demo/dog_move/dog_move.gif" alt="dog_move" style="max-height: 200px; width: auto;"> | <img src="data/demo/knee_walk/knee_walk.gif" alt="knee_walk" style="max-height: 200px; width: auto;"> |
 
 ### Dataset Preparation
 
@@ -121,3 +121,9 @@ With these tools, the dataset organization naturally aligns with the conventions
   year={2025}
 }
 ```
+
+## Community
+
+| Renforce Dynamics | **Join our WeChat Group** |
+|:--|:--|
+| | <img src="https://github.com/Renforce-Dynamics/.github/blob/main/pics/wechat_group/group.jpg" alt="Renforce Dynamics WeChat Group" height="180"> |

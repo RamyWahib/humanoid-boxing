@@ -1,15 +1,12 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from isaaclab.utils import configclass
-from beyondAMP.isaaclab.configs.rl_cfg import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
-from beyondAMP.isaaclab.configs.amp_cfg import AMPDataCfg, AMPObsBaiscCfg, AMPPPOAlgorithmCfg, AMPRunnerCfg
+from beyondAMP.isaaclab.rsl_rl.configs.rl_cfg import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
+from beyondAMP.isaaclab.rsl_rl.configs.amp_cfg import MotionDatasetCfg, AMPObsBaiscCfg, AMPPPOAlgorithmCfg, AMPRunnerCfg
 
-from .config import g1_key_body_names
+from robotlib.robot_keys.g1_29d import g1_key_body_names, g1_anchor_name
 
-from beyondAMP.amp_obs_grp import AMPObsBaiscTerms
+from beyondAMP.obs_groups import AMPObsBaiscTerms
+
+from amp_tasks.amp_task_demo_data_cfg import velocity_task_files
 
 @configclass
 class BasePPORunnerCfg(RslRlOnPolicyRunnerCfg):
@@ -70,23 +67,11 @@ class G1FlatAMPRunnerCfg(AMPRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
-    amp_data = AMPDataCfg(
-        motion_files=[
-            "data/datasets/MocapG1Full/LAFAN/walk1_subject1.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk1_subject2.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk1_subject5.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk2_subject1.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk2_subject3.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk2_subject4.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk3_subject1.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk3_subject2.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk3_subject3.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk3_subject4.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk3_subject5.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk4_subject1.npz",
-        ],
+    amp_data = MotionDatasetCfg(
+        motion_files=velocity_task_files,
         body_names = g1_key_body_names,
-        amp_obs_terms = AMPObsBaiscTerms
+        amp_obs_terms = AMPObsBaiscTerms,
+        anchor_name=g1_anchor_name
     )
     amp_discr_hidden_dims = [256, 256]
     amp_reward_coef = 0.5

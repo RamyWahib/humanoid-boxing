@@ -29,4 +29,6 @@
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
 from .ppo import PPO
-from .amp_ppo import AMPPPO
+from .amp_ppo import AMPPPO, AMPPPOWeighted
+# from .bmp_ppo import BMPPPO
+from .amp_fpo import AMPFPO

@@ -37,7 +37,7 @@ import torch
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.dict import print_dict
 from isaaclab_tasks.utils import get_checkpoint_path, parse_env_cfg
-from beyondAMP.isaaclab.vecenv_wrapper import RslRlVecEnvWrapper
+from beyondAMP.isaaclab.rsl_rl.vecenv_wrapper import RslRlVecEnvWrapper
 from isaaclab.utils.io import dump_yaml
 
 import amp_tasks
