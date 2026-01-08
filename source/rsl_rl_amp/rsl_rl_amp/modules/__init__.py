@@ -31,3 +31,4 @@
 from .actor_critic import ActorCritic
 from .actor_critic_recurrent import ActorCriticRecurrent
 from .actor_critic_multi import ActorCriticMulti
+from .actor_critic_fpo import ActorCriticFPO
