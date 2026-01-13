@@ -1,1 +1,0 @@
-experiment_name = "g1_punch_hit"

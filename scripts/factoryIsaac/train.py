@@ -81,13 +81,16 @@ def main():
     runner: AMPOnPolicyRunner = func_runner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
     
     # save resume path before creating a new log_dir
-    if args_cli.resume:
+    if agent_cfg.resume:
         # get path to previous checkpoint
-        resume_path = args_cli.checkpoint
+        resume_path = agent_cfg.load_target
         # get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")
         # load previously trained model
         runner.load(resume_path)
+
+    init_weight = getattr(agent_cfg, "init_weight", None)
+    if init_weight: runner.load(init_weight)
 
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)

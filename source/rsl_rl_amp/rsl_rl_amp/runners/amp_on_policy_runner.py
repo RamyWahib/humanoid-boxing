@@ -1,3 +1,33 @@
+# SPDX-FileCopyrightText: Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+# list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+# contributors may be used to endorse or promote products derived from
+# this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Copyright (c) 2021 ETH Zurich, Nikita Rudin
+
 import time
 import os
 from collections import deque
@@ -7,12 +37,12 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 import torch
 
-from rsl_rl_amp.algorithms import AMPPPO, PPO, AMPPPOWeighted
+from rsl_rl_amp.algorithms import AMPPPO, PPO
 from rsl_rl_amp.modules import ActorCritic, ActorCriticRecurrent
 from rsl_rl_amp.env import VecEnv
-from rsl_rl_amp.modules.amp_discriminator import AMPDiscriminator
+from rsl_rl_amp.algorithms.amp_discriminator import AMPDiscriminator
 from rsl_rl_amp.utils.utils import Normalizer
-from beyondAMP.isaaclab.rsl_rl.amp_wrapper import AMPEnvWrapper
+from beyondAMP.isaaclab.amp_wrapper import AMPEnvWrapper
 
 from beyondAMP.motion.motion_dataset import MotionDataset
 
@@ -41,11 +71,14 @@ class AMPOnPolicyRunner:
                                                         num_actions=self.env.num_actions,
                                                         **self.policy_cfg).to(self.device)
 
-        amp_data = env.motion_dataset
-        amp_obs_dim = env.get_amp_observations().shape[-1] # amp_data.observation_dim
-        amp_normalizer = Normalizer(amp_obs_dim)
+        amp_data = MotionDataset.from_cfg(
+            cfg=self.amp_data_cfg,
+            env=env.unwrapped,
+            device=device
+            )
+        amp_normalizer = Normalizer(amp_data.observation_dim)
         discriminator = AMPDiscriminator(
-            amp_obs_dim * 2,
+            amp_data.observation_dim * 2,
             train_cfg['amp_reward_coef'],
             train_cfg['amp_discr_hidden_dims'], device,
             train_cfg['amp_task_reward_lerp']).to(self.device)
@@ -87,12 +120,8 @@ class AMPOnPolicyRunner:
 
         ep_infos = []
         rewbuffer = deque(maxlen=100)
-        ampbuffer = deque(maxlen=100)
-        discribuffer = deque(maxlen=100)
         lenbuffer = deque(maxlen=100)
         cur_reward_sum = torch.zeros(self.env.num_envs, dtype=torch.float, device=self.device)
-        cur_amp_sum = torch.zeros(self.env.num_envs, dtype=torch.float, device=self.device)
-        cur_discri_sum = torch.zeros(self.env.num_envs, dtype=torch.float, device=self.device) 
         cur_episode_length = torch.zeros(self.env.num_envs, dtype=torch.float, device=self.device)
 
         tot_iter = self.current_learning_iteration + num_learning_iterations
@@ -112,10 +141,10 @@ class AMPOnPolicyRunner:
                     next_amp_obs_with_term = torch.clone(next_amp_obs)
                     next_amp_obs_with_term[reset_env_ids] = terminal_amp_states
 
-                    lerp_rewards, d_logits, amp_rewards = self.alg.discriminator.predict_amp_reward(
+                    rewards = self.alg.discriminator.predict_amp_reward(
                         amp_obs, next_amp_obs_with_term, rewards, normalizer=self.alg.amp_normalizer)[0]
                     amp_obs = torch.clone(next_amp_obs)
-                    self.alg.process_env_step(lerp_rewards, dones, infos, next_amp_obs_with_term)
+                    self.alg.process_env_step(rewards, dones, infos, next_amp_obs_with_term)
                     
                     if self.log_dir is not None:
                         # Book keeping
@@ -124,13 +153,12 @@ class AMPOnPolicyRunner:
                         if 'log' in infos:
                             ep_infos.append(infos['log'])
                         cur_reward_sum += rewards
-                        cur_amp_sum += amp_rewards
-                        cur_discri_sum += d_logits
                         cur_episode_length += 1
-                        self.log_loc(cur_reward_sum, dones, rewbuffer)
-                        self.log_loc(cur_amp_sum, dones, ampbuffer)
-                        self.log_loc(cur_discri_sum, dones, discribuffer)
-                        self.log_loc(cur_episode_length, dones, lenbuffer)
+                        new_ids = (dones > 0).nonzero(as_tuple=False)
+                        rewbuffer.extend(cur_reward_sum[new_ids][:, 0].cpu().numpy().tolist())
+                        lenbuffer.extend(cur_episode_length[new_ids][:, 0].cpu().numpy().tolist())
+                        cur_reward_sum[new_ids] = 0
+                        cur_episode_length[new_ids] = 0
 
                 stop = time.time()
                 collection_time = stop - start
@@ -139,11 +167,7 @@ class AMPOnPolicyRunner:
                 start = stop
                 self.alg.compute_returns(critic_obs)
             
-            mean_value_loss, mean_surrogate_loss, \
-            mean_amp_loss, mean_grad_pen_loss, \
-            mean_policy_pred, mean_expert_pred = \
-                self.alg.update()
-                
+            mean_value_loss, mean_surrogate_loss, mean_amp_loss, mean_grad_pen_loss, mean_policy_pred, mean_expert_pred = self.alg.update()
             stop = time.time()
             learn_time = stop - start
             if self.log_dir is not None:
@@ -154,11 +178,6 @@ class AMPOnPolicyRunner:
         
         self.current_learning_iteration += num_learning_iterations
         self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(self.current_learning_iteration)))
-
-    def log_loc(self, cur_sum, dones, buffer):
-        new_ids = (dones > 0).nonzero(as_tuple=False)
-        buffer.extend(cur_sum[new_ids][:, 0].cpu().numpy().tolist())
-        cur_sum[new_ids] = 0
 
     def log(self, locs, width=80, pad=35):
         self.tot_timesteps += self.num_steps_per_env * self.env.num_envs
@@ -196,10 +215,6 @@ class AMPOnPolicyRunner:
             self.writer.add_scalar('Train/mean_episode_length', statistics.mean(locs['lenbuffer']), locs['it'])
             self.writer.add_scalar('Train/mean_reward/time', statistics.mean(locs['rewbuffer']), self.tot_time)
             self.writer.add_scalar('Train/mean_episode_length/time', statistics.mean(locs['lenbuffer']), self.tot_time)
-            self.writer.add_scalar('Train/mean_amp_reward', statistics.mean(locs['ampbuffer']), locs['it'])
-            self.writer.add_scalar('Train/mean_discri_logits', statistics.mean(locs['discribuffer']), locs['it'])
-            self.writer.add_scalar('Train/mean_amp_reward/time', statistics.mean(locs['ampbuffer']), self.tot_time)
-            self.writer.add_scalar('Train/mean_discri_logits/time', statistics.mean(locs['discribuffer']), self.tot_time)
 
         str = f" \033[1m Learning iteration {locs['it']}/{self.current_learning_iteration + locs['num_learning_iterations']} \033[0m "
 
@@ -250,7 +265,7 @@ class AMPOnPolicyRunner:
             }, path)
 
     def load(self, path, load_optimizer=True):
-        loaded_dict = torch.load(path, map_location=self.device, weights_only=False)
+        loaded_dict = torch.load(path, weights_only=False)
         self.alg.actor_critic.load_state_dict(loaded_dict['model_state_dict'])
         self.alg.discriminator.load_state_dict(loaded_dict['discriminator_state_dict'])
         self.alg.amp_normalizer = loaded_dict['amp_normalizer']

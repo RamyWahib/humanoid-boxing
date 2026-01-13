@@ -1,24 +1,19 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from isaaclab.utils import configclass
 from beyondAMP.isaaclab.configs.rl_cfg import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
+
 from beyondAMP.isaaclab.configs.amp_cfg import AMPDataCfg, AMPObsBaiscCfg, AMPPPOAlgorithmCfg, AMPRunnerCfg
+
+from beyondAMP.amp_obs_grp import AMPObsBaiscTerms, AMPObsSoftTrackTerms, AMPObsHardTrackTerms
 
 from .config import g1_key_body_names
 
-from beyondAMP.amp_obs_grp import AMPObsBaiscTerms
-
 @configclass
-class BasePPORunnerCfg(RslRlOnPolicyRunnerCfg):
+class G1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 50000
-    save_interval = 100
-    experiment_name = "g1_loco"  # same as task name
-    run_name = "cliped_with_lin"
-    empirical_normalization = False
+    max_iterations = 30000
+    save_interval = 500
+    experiment_name = "g1_flat"
+    empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
         actor_hidden_dims=[512, 256, 128],
@@ -29,7 +24,7 @@ class BasePPORunnerCfg(RslRlOnPolicyRunnerCfg):
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        entropy_coef=0.01,
+        entropy_coef=0.005,
         num_learning_epochs=5,
         num_mini_batches=4,
         learning_rate=1.0e-3,
@@ -40,14 +35,12 @@ class BasePPORunnerCfg(RslRlOnPolicyRunnerCfg):
         max_grad_norm=1.0,
     )
 
-
 @configclass
 class G1FlatAMPRunnerCfg(AMPRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 5000
     save_interval = 500
-    experiment_name = "g1_loco"
-    run_name = "amp"
+    experiment_name = "g1_flat"
     empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
@@ -72,6 +65,31 @@ class G1FlatAMPRunnerCfg(AMPRunnerCfg):
     )
     amp_data = AMPDataCfg(
         motion_files=[
+            "data/demo/punch_000.npz"
+        ],
+        body_names = g1_key_body_names,
+        amp_obs_terms = None
+    )
+    amp_discr_hidden_dims = [256, 256]
+    amp_reward_coef = 0.5
+    amp_task_reward_lerp = 0.3
+
+
+@configclass
+class G1FlatAMPBaiscCfg(G1FlatAMPRunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.amp_data.amp_obs_terms = AMPObsBaiscTerms
+        self.run_name = "basic"
+
+
+@configclass
+class G1FlatAMPSoftTrackCfg(G1FlatAMPRunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.amp_data.amp_obs_terms = AMPObsSoftTrackTerms
+        self.run_name = "soft_track"
+        self.amp_data.motion_files = [
             "data/datasets/MocapG1Full/LAFAN/walk1_subject1.npz",
             "data/datasets/MocapG1Full/LAFAN/walk1_subject2.npz",
             "data/datasets/MocapG1Full/LAFAN/walk1_subject5.npz",
@@ -84,10 +102,11 @@ class G1FlatAMPRunnerCfg(AMPRunnerCfg):
             "data/datasets/MocapG1Full/LAFAN/walk3_subject4.npz",
             "data/datasets/MocapG1Full/LAFAN/walk3_subject5.npz",
             "data/datasets/MocapG1Full/LAFAN/walk4_subject1.npz",
-        ],
-        body_names = g1_key_body_names,
-        amp_obs_terms = AMPObsBaiscTerms
-    )
-    amp_discr_hidden_dims = [256, 256]
-    amp_reward_coef = 0.5
-    amp_task_reward_lerp = 0.3
+        ]
+
+@configclass
+class G1FlatAMPHardTrackCfg(G1FlatAMPRunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.amp_data.amp_obs_terms = AMPObsHardTrackTerms
+        self.run_name = "hard_track"

@@ -60,7 +60,7 @@ from isaaclab.utils.dict import print_dict
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 from rsl_rl_amp.runners import OnPolicyRunner
-from beyondAMP.isaaclab.rsl_rl.exporter import export_policy_as_jit, export_policy_as_onnx
+from beyondAMP.isaaclab.exporter import export_policy_as_jit, export_policy_as_onnx
 
 def main():
     """Play with RSL-RL agent. base branch"""
@@ -79,6 +79,9 @@ def main():
         os.makedirs(sample_dir, exist_ok=True)
         output_file = os.path.join(sample_dir, "total_data.pkl")
     
+    with open(os.path.join(run_path, "params", "agent.pkl"), "rb") as f:
+        agent_cfg = pickle.load(f)
+        
     if task_name is None:
         assert os.path.exists(os.path.join(run_path, "params", "args.pkl")), "No task specified."
         with open(os.path.join(run_path, "params", "args.pkl"), "rb") as f:
@@ -87,16 +90,11 @@ def main():
 
         with open(os.path.join(run_path, "params", "env.pkl"), "rb") as f:
             env_cfg = pickle.load(f)
-            
-        with open(os.path.join(run_path, "params", "agent.pkl"), "rb") as f:
-            agent_cfg = pickle.load(f)
     else:
         env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-        agent_cfg = rsl_arg_cli.parse_rsl_rl_cfg(task_name, args_cli, None)
 
     env_cfg.sim.device = args_cli.device
     env_cfg.seed = args_cli.seed
-    # env_cfg.commands.punch_command.debug_vis = True
 
     from isaaclab.envs.common import ViewerCfg
     
@@ -115,7 +113,7 @@ def main():
     # if args_cli.determine:
     #     set_determine_reset(env_cfg)
     
-    # env_cfg.commands.base_velocity.ranges.lin_vel_x = (0.3, 0.8)
+    env_cfg.commands.base_velocity.ranges.lin_vel_x = (0.3, 0.8)
     # env_cfg.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
     # env_cfg.commands.base_velocity.ranges.ang_vel_z = (0.0, 0.0)
     

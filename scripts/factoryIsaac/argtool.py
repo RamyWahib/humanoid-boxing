@@ -20,8 +20,8 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser):
     )
     arg_group.add_argument("--run_name", type=str, default=None, help="Run name suffix to the log directory.")
     # -- load arguments
-    arg_group.add_argument("--resume", action="store_true", help="Whether to resume from a checkpoint.")
-    # arg_group.add_argument("--load_run", type=str, default=None, help="Name of the run folder to resume from.")
+    arg_group.add_argument("--resume", type=bool, default=None, help="Whether to resume from a checkpoint.")
+    arg_group.add_argument("--load_run", type=str, default=None, help="Name of the run folder to resume from.")
     arg_group.add_argument("--checkpoint", type=str, default=None, help="Checkpoint file to resume from.")
     # -- logger arguments
     arg_group.add_argument(
@@ -53,8 +53,8 @@ def parse_rsl_rl_cfg(task_name: str, args_cli: argparse.Namespace, rsl_rl_cfg=No
         rsl_rl_cfg.seed = args_cli.seed
     if args_cli.resume is not None:
         rsl_rl_cfg.resume = args_cli.resume
-    # if args_cli.load_run is not None:
-    #     rsl_rl_cfg.load_run = args_cli.load_run
+    if args_cli.load_run is not None:
+        rsl_rl_cfg.load_run = args_cli.load_run
     if args_cli.checkpoint is not None:
         rsl_rl_cfg.load_checkpoint = args_cli.checkpoint
     if args_cli.run_name is not None:
@@ -143,14 +143,13 @@ def load_cfgs(args_cli, modified=False):
 
 def prepare_wrapper(env, args_cli, agent_cfg) -> Tuple[RslRlVecEnvWrapper, callable, dict]:
     print("Using main branch.")
-    from beyondAMP.isaaclab.rsl_rl import AMPEnvWrapper
-
-    env = AMPEnvWrapper(env, motion_dataset=getattr(agent_cfg, "amp_data", None))
+    from beyondAMP.isaaclab import AMPEnvWrapper
+    env = AMPEnvWrapper(env)
     learn_cfg = {
         "num_learning_iterations": agent_cfg.max_iterations,
         "init_at_random_ep_len": True
     }
-    
+
     if hasattr(agent_cfg, "runner_type"):
         func_runner = agent_cfg.runner_type
         if not callable(func_runner):
@@ -165,4 +164,4 @@ def prepare_wrapper(env, args_cli, agent_cfg) -> Tuple[RslRlVecEnvWrapper, calla
 def dump_pickle(fpath, obj):
     with open(fpath, "wb") as f:
         pickle.dump(obj, f)        
-
+    

@@ -7,7 +7,7 @@ from . import rsl_rl_ppo_cfg, flat_env_cfg
 ##
 
 gym.register(
-    id="Tracking-Flat-G1-v0",
+    id="PPOG1",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -17,32 +17,32 @@ gym.register(
 )
 
 gym.register(
-    id="Tracking-Flat-G1-Wo-State-Estimation-v0",
+    id="AMPG1_Basic",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": flat_env_cfg.G1FlatWoStateEstimationEnvCfg,
-        "rsl_rl_cfg_entry_point": rsl_rl_ppo_cfg.G1FlatWoStateEstimationPPORunnerCfg,
+        "env_cfg_entry_point": flat_env_cfg.G1FlatEnvBasicCfg,
+        "rsl_rl_cfg_entry_point": rsl_rl_ppo_cfg.G1FlatAMPBaiscCfg,
     },
 )
 
 
 gym.register(
-    id="Tracking-Flat-G1-Low-Freq-v0",
+    id="AMPG1_Soft",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": flat_env_cfg.G1FlatLowFreqEnvCfg,
-        "rsl_rl_cfg_entry_point": rsl_rl_ppo_cfg.G1FlatLowFreqPPORunnerCfg,
+        "env_cfg_entry_point": flat_env_cfg.G1FlatEnvSoftTrackCfg,
+        "rsl_rl_cfg_entry_point": rsl_rl_ppo_cfg.G1FlatAMPSoftTrackCfg,
     },
 )
 
 gym.register(
-    id="Tracking-Flat-G1-NoRela",
+    id="AMPG1_Hard",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": flat_env_cfg.G1FlatNoRelaEnvCfg,
-        "rsl_rl_cfg_entry_point": rsl_rl_ppo_cfg.G1FlatNoRelaRunnerCfg,
+        "env_cfg_entry_point": flat_env_cfg.G1FlatEnvHardTrackCfg,
+        "rsl_rl_cfg_entry_point": rsl_rl_ppo_cfg.G1FlatAMPHardTrackCfg,
     },
 )

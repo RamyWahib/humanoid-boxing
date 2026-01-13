@@ -1,15 +1,8 @@
-from __future__ import annotations
-
 import os
 import numpy as np
 import torch
 from typing import Sequence, List, Union
-from dataclasses import MISSING
-
-from isaaclab.utils import configclass
-
-from .utils.math import quat_apply_inverse, quat_conjugate, quat_apply
-from .motion_transition import MotionTransition
+from beyondAMP.amp_obs_grp import AMPObsBaiscCfg
 
 class MotionDataset:
     """
@@ -19,31 +12,15 @@ class MotionDataset:
 
     def __init__(
         self, 
-        cfg: MotionDatasetCfg,
-        env,
+        motion_files: Sequence[str], 
+        body_indexes: Sequence[str], 
+        amp_obs_terms: List[str],
         device: str = "cpu",
         ):
-        self.cfg = cfg
-        self.env = env
         self.device = device
-        self.robot = env.scene[cfg.asset_name]
-        self.motion_files = cfg.motion_files
-        self.observation_terms = cfg.amp_obs_terms
-        
-        body_names = cfg.body_names
-        self.body_indexes = torch.tensor(
-            self.robot.find_bodies(body_names, preserve_order=True)[0], dtype=torch.long, device=device
-        )
+        self.body_indexes = torch.tensor(body_indexes, dtype=torch.long)
+        self.observation_terms = amp_obs_terms
 
-        anchor_name = cfg.anchor_name
-        self.anchor_index = torch.tensor(
-            self.robot.find_bodies(anchor_name, preserve_order=True)[0], dtype=torch.long, device=device
-        )
-        
-        self.load_motions()
-        self.init_observation_dims()
-
-    def load_motions(self):
         # Storage lists (later concatenated)
         joint_pos_list = []
         joint_vel_list = []
@@ -55,7 +32,7 @@ class MotionDataset:
         traj_lengths = []
 
         # Load all motion files
-        for f in self.motion_files:
+        for f in motion_files:
             assert os.path.isfile(f), f"Invalid motion file: {f}"
             data = np.load(f)
 
@@ -71,151 +48,51 @@ class MotionDataset:
             body_ang_vel_w_list.append(torch.tensor(data["body_ang_vel_w"], dtype=torch.float32))
 
         # Concatenate all trajectories into single big tensors
-        self.joint_pos      = torch.cat(joint_pos_list, dim=0).to(self.device)
-        self.joint_vel      = torch.cat(joint_vel_list, dim=0).to(self.device)
-        self.body_pos_w_all      = torch.cat(body_pos_w_list, dim=0).to(self.device)
-        self.body_quat_w_all     = torch.cat(body_quat_w_list, dim=0).to(self.device)
-        self.body_lin_vel_w_all  = torch.cat(body_lin_vel_w_list, dim=0).to(self.device)
-        self.body_ang_vel_w_all  = torch.cat(body_ang_vel_w_list, dim=0).to(self.device)
+        self.joint_pos = torch.cat(joint_pos_list, dim=0).to(device)
+        self.joint_vel = torch.cat(joint_vel_list, dim=0).to(device)
+        body_pos_w_all = torch.cat(body_pos_w_list, dim=0).to(device)
+        body_quat_w_all = torch.cat(body_quat_w_list, dim=0).to(device)
+        body_lin_vel_w_all = torch.cat(body_lin_vel_w_list, dim=0).to(device)
+        body_ang_vel_w_all = torch.cat(body_ang_vel_w_list, dim=0).to(device)
 
         self.total_dataset_size = sum(traj_lengths)
+        
+        def subtract_flaten(target: torch.Tensor):
+            target = target[:, self.body_indexes]
+            return target.reshape(self.total_dataset_size, -1)
+        self.body_pos_w      = subtract_flaten(body_pos_w_all)
+        self.body_quat_w     = subtract_flaten(body_quat_w_all)
+        self.body_lin_vel_w  = subtract_flaten(body_lin_vel_w_all)
+        self.body_ang_vel_w  = subtract_flaten(body_ang_vel_w_all)
 
         # Keep per-trajectory FPS if needed
         self.fps_list = fps_list
 
         # Build transition index list: (global_index_t, global_index_t+1)
-        self.index_t, self.index_tp1 = self._build_transition_indices(traj_lengths, self.device)
-
-    # ----------------------- Property API -----------------------
-    
-    def subtract_flaten(self, target: torch.Tensor):
-        target = target[:, self.body_indexes]
-        return target.reshape(self.total_dataset_size, -1)
-    
-    @property
-    def body_pos_w(self):
-        return self.body_pos_w_all[:, self.body_indexes].reshape(self.total_dataset_size, -1)
-    @property
-    def body_quat_w(self):
-        return self.body_quat_w_all[:, self.body_indexes].reshape(self.total_dataset_size, -1)
-    @property
-    def body_lin_vel_w(self):
-        return self.body_lin_vel_w_all[:, self.body_indexes].reshape(self.total_dataset_size, -1)
-    @property
-    def body_ang_vel_w(self):
-        return self.body_ang_vel_w_all[:, self.body_indexes].reshape(self.total_dataset_size, -1)
-    
-    @property
-    def body_pos_b(self):
-        """
-        body positions expressed in anchor-local frame.
-        Output: (N, num_bodies * 3)
-        """
-        # (N, B, 3)
-        pos_w = self.body_pos_w_all[:, self.body_indexes]  
-
-        # (N, 1, 3)
-        anchor_pos = self._anchor_pos.unsqueeze(1)
-        anchor_quat = self._anchor_quat.unsqueeze(1)
-
-        # translate then rotate into anchor frame
-        rel = pos_w - anchor_pos                           # world-space relative
-        rel_local = quat_apply_inverse(anchor_quat, rel)   # world → anchor
-
-        return rel_local.reshape(self.total_dataset_size, -1)
-
-    @property
-    def body_quat_b(self):
-        """
-        body orientations expressed in anchor-local frame.
-        q_local = q_anchor^{-1} ⊗ q_body
-        Output: (N, num_bodies * 4)
-        """
-        q_body = self.body_quat_w_all[:, self.body_indexes]             # (N, B, 4)
-        q_anchor = self._anchor_quat.unsqueeze(1)                       # (N, 1, 4)
-
-        q_anchor_inv = quat_conjugate(q_anchor)                         # IsaacLab: unit quats → inverse = conjugate
-        q_rel = quat_apply(q_anchor_inv, q_body)                        # broadcast quaternion multiply
-
-        return q_rel.reshape(self.total_dataset_size, -1)
-
-    @property
-    def body_lin_vel_b(self):
-        """
-        body linear velocities in anchor-local frame.
-        v_rel_local = R(q_anchor)^T (v_body - v_anchor)
-        """
-        v_body = self.body_lin_vel_w_all[:, self.body_indexes]          # (N, B, 3)
-        v_anchor = self.anchor_lin_vel_w.unsqueeze(1)                   # (N, 1, 3)
-
-        rel = v_body - v_anchor                                         # world frame
-        rel_local = quat_apply_inverse(self._anchor_quat.unsqueeze(1), rel)
-
-        return rel_local.reshape(self.total_dataset_size, -1)
-
-    @property
-    def body_ang_vel_b(self):
-        """
-        body angular velocities in anchor-local frame.
-        ω_rel_local = R(q_anchor)^T (ω_body - ω_anchor)
-        """
-        w_body = self.body_ang_vel_w_all[:, self.body_indexes]          # (N, B, 3)
-        w_anchor = self.anchor_ang_vel_w.unsqueeze(1)                   # (N, 1, 3)
-
-        rel = w_body - w_anchor
-        rel_local = quat_apply_inverse(self._anchor_quat.unsqueeze(1), rel)
-
-        return rel_local.reshape(self.total_dataset_size, -1)
-
-    
-    @property
-    def anchor_height(self):
-        return self.anchor_pos_w[:, -1]
-    
-    @property
-    def anchor_pos_w(self):
-        return self.body_pos_w_all[:, self.anchor_index].reshape(self.total_dataset_size, -1)
-    @property
-    def anchor_quat_w(self):
-        return self.body_quat_w_all[:, self.anchor_index].reshape(self.total_dataset_size, -1)
-    @property
-    def anchor_lin_vel_w(self):
-        return self.body_lin_vel_w_all[:, self.anchor_index].reshape(self.total_dataset_size, -1)
-    @property
-    def anchor_ang_vel_w(self):
-        return self.body_ang_vel_w_all[:, self.anchor_index].reshape(self.total_dataset_size, -1)
-        
-    @property
-    def base_lin_vel(self):
-        """
-        Base (anchor) linear velocity expressed in base frame.
-        Shape: (N, 3)
-        """
-        v_w = self.anchor_lin_vel_w                       # (N, 3)
-        q_w = self.anchor_quat_w                          # (N, 4)
-
-        v_b = quat_apply_inverse(q_w, v_w)                # world → base
-        return v_b
-
-    @property
-    def base_ang_vel(self):
-        """
-        Base (anchor) angular velocity expressed in base frame.
-        Shape: (N, 3)
-        """
-        w_w = self.anchor_ang_vel_w                       # (N, 3)
-        q_w = self.anchor_quat_w                          # (N, 4)
-
-        w_b = quat_apply_inverse(q_w, w_w)                # world → base
-        return w_b
-
+        self.index_t, self.index_tp1 = self._build_transition_indices(traj_lengths, device)
+        self.init_observation_dims()
 
     # ----------------------- Transition index builder -----------------------
 
+    @classmethod
+    def from_cfg(cls, cfg: dict, env, device):
+        body_names = cfg["body_names"]
+        robot = env.scene[cfg["asset_name"]]
+        body_indexes = torch.tensor(
+            robot.find_bodies(body_names, preserve_order=True)[0], dtype=torch.long, device=device
+        )
+        obj = cls(
+            motion_files  = cfg["motion_files"],
+            body_indexes  = body_indexes,
+            amp_obs_terms = cfg["amp_obs_terms"],
+            device        = device
+            )
+        return obj
+
     def observation_dim_cast(self, name)->int:
-        # shape_cast_table = {
-        #     "displacement": self.body_indexes.shape[-1]
-        # }
+        shape_cast_table = {
+            "displacement": self.body_indexes.shape[-1]
+        }
         if hasattr(self, name):
             obs_term: torch.Tensor = getattr(self, name)
             assert isinstance(obs_term, torch.Tensor), f"invalid observation name: {name} for get dim"
@@ -271,28 +148,22 @@ class MotionDataset:
         idx = torch.randint(0, len(self.index_t), (batch_size,), device=self.device)
         t = self.index_t[idx]
         tp1 = self.index_tp1[idx]
-        return t, tp1
+
+        return {
+            "joint_pos": (self.joint_pos[t],  self.joint_pos[tp1]),
+            "joint_vel": (self.joint_vel[t], self.joint_vel[tp1]),
+            "body_pos_w":  (self.body_pos_w[t], self.body_pos_w[tp1]),
+            "body_quat_w": (self.body_quat_w[t], self.body_quat_w[tp1]),
+            "body_lin_vel_w": (self.body_lin_vel_w[t], self.body_lin_vel_w[tp1]),
+            "body_ang_vel_w": (self.body_ang_vel_w[t], self.body_ang_vel_w[tp1]),
+        }
 
     def feed_forward_generator(self, num_mini_batch, mini_batch_size):
         for idx in range(0, num_mini_batch):
-            t, tp1 = self.sample_batch(mini_batch_size)
-            res_t, res_tp1 = self.build_transition(t, tp1)
-            yield res_t, res_tp1
-            
-    def build_transition(self, t, tp1):
-        res_t, res_tp1 = [], []
-        for term in self.observation_terms:
-            _t, _tp1 = getattr(self, term)[t], getattr(self, term)[tp1]
-            res_t.append(_t); res_tp1.append(_tp1)
-        res_t, res_tp1 = torch.cat(res_t, dim=-1), torch.cat(res_tp1, dim=-1)
-        return res_t, res_tp1
-        
-
-@configclass
-class MotionDatasetCfg:
-    class_type          : type[MotionDataset] = MotionDataset
-    asset_name          : str = "robot"
-    motion_files        : List[str] = MISSING
-    body_names          : List[str] = MISSING
-    amp_obs_terms       : List[str] = MISSING
-    anchor_name         : str = MISSING
+            sample = self.sample_batch(mini_batch_size)
+            t1, tp1 = [], []
+            for term in self.observation_terms:
+                _t1, _tp1 = sample[term]
+                t1.append(_t1); tp1.append(_tp1)
+            t1, tp1 = torch.cat(t1, dim=-1), torch.cat(tp1, dim=-1)
+            yield t1, tp1
