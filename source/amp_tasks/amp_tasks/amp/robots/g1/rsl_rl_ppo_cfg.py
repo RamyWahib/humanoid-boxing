@@ -38,7 +38,7 @@ class G1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 @configclass
 class G1FlatAMPRunnerCfg(AMPRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 5000
+    max_iterations = 30000
     save_interval = 500
     experiment_name = "g1_flat"
     empirical_normalization = True
@@ -90,19 +90,37 @@ class G1FlatAMPSoftTrackCfg(G1FlatAMPRunnerCfg):
         self.amp_data.amp_obs_terms = AMPObsSoftTrackTerms
         self.run_name = "soft_track"
         self.amp_data.motion_files = [
-            "data/datasets/MocapG1Full/LAFAN/walk1_subject1.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk1_subject2.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk1_subject5.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk2_subject1.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk2_subject3.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk2_subject4.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk3_subject1.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk3_subject2.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk3_subject3.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk3_subject4.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk3_subject5.npz",
-            "data/datasets/MocapG1Full/LAFAN/walk4_subject1.npz",
+            "data/datasets/AMASS7/B4_-_Stand_to_Walk_backwards_stageii",
+            "data/datasets/AMASS7/B9_-__Walk_turn_left_90_stageii",
+            "data/datasets/AMASS7/B10_-__Walk_turn_left_45_stageii",
+            "data/datasets/AMASS7/B11_-__Walk_turn_left_135_stageii",
+            "data/datasets/AMASS7/B13_-__Walk_turn_right_90_stageii",
+            "data/datasets/AMASS7/B14_-__Walk_turn_right_45_t2_stageii",
+            "data/datasets/AMASS7/B15_-__Walk_turn_around_stageii",
+            "data/datasets/AMASS7/B22_-__side_step_left_stageii",
+            "data/datasets/AMASS7/B23_-__side_step_right_stageii",
+            "data/datasets/AMASS7/C1_-_stand_to_run_stageii",
+            "data/datasets/AMASS7/C3_-_run_stageii",
+            "data/datasets/AMASS7/C4_-_run_to_walk_a_stageii",
+            "data/datasets/AMASS7/C5_-_walk_to_run_stageii",
+            "data/datasets/AMASS7/C6_-_stand_to_run_backwards_stageii",
+            "data/datasets/AMASS7/C8_-_run_backwards_to_stand_stageii",
+            "data/datasets/AMASS7/C9_-_run_backwards_turn_run_forward_stageii",
+            "data/datasets/AMASS7/C11_-_run_turn_left_90_stageii",
+            "data/datasets/AMASS7/C12_-_run_turn_left_45_stageii",
+            "data/datasets/AMASS7/C13_-_run_turn_left_135_stageii",
+            "data/datasets/AMASS7/C14_-_run_turn_right_90_stageii",
+            "data/datasets/AMASS7/C15_-_run_turn_right_45_stageii",
+            "data/datasets/AMASS7/C16_-_run_turn_right_135_stageii",
+            "data/datasets/AMASS7/C17_-_run_change_direction_stageii",
+            "data/datasets/AMASS7/Walk_B4_-_Stand_to_Walk_Back_stageii",
+            "data/datasets/AMASS7/Walk_B10_-_Walk_turn_left_45_stageii",
+            "data/datasets/AMASS7/Walk_B13_-_Walk_turn_right_45_stageii",   
+            "data/datasets/AMASS7/Walk_B15_-_Walk_turn_around_stageii",
+            "data/datasets/AMASS7/Walk_B16_-_Walk_turn_change_stageii",
+            "data/datasets/AMASS7/Walk_B22_-_Side_step_left_stageii",
         ]
+        
 
 @configclass
 class G1FlatAMPHardTrackCfg(G1FlatAMPRunnerCfg):
