@@ -1,13 +1,14 @@
 from isaaclab.utils import configclass
-from beyondAMP.isaaclab.configs.rl_cfg import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
-
+from beyondAMP.isaaclab.rsl_rl.configs.rl_cfg import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
+from beyondAMP.isaaclab.rsl_rl.configs.amp_cfg import MotionDatasetCfg, AMPObsBaiscCfg, AMPPPOAlgorithmCfg, AMPRunnerCfg
 
 @configclass
 class G1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 30000
     save_interval = 500
-    experiment_name = "g1_flat"
+    experiment_name = "g1_track"
+    run_name = "origin"
     empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
@@ -32,21 +33,55 @@ class G1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 @configclass
 class G1FlatWoStateEstimationPPORunnerCfg(G1FlatPPORunnerCfg):
-    run_name = "wo"
-    init_weight = "logs/rsl_rl/g1_flat/model_29999.pt"
-
-
-LOW_FREQ_SCALE = 0.5
-
-
-@configclass
-class G1FlatLowFreqPPORunnerCfg(G1FlatPPORunnerCfg):
+    run_name = "origin_wo"
     def __post_init__(self):
         super().__post_init__()
-        self.num_steps_per_env = round(self.num_steps_per_env * LOW_FREQ_SCALE)
-        self.algorithm.gamma = self.algorithm.gamma ** (1 / LOW_FREQ_SCALE)
-        self.algorithm.lam = self.algorithm.lam ** (1 / LOW_FREQ_SCALE)
+
+from robotlib.robot_keys.g1_29d import g1_key_body_names, g1_anchor_name
+from beyondAMP.obs_groups import AMPObsBaiscTerms, AMPObsSoftTrackTerms, AMPObsHardTrackTerms
+from amp_tasks import amp_task_demo_data_cfg
 
 @configclass
-class G1FlatNoRelaRunnerCfg(G1FlatPPORunnerCfg):
-        run_name = "no_rela"
+class G1FlatAMPRunnerCfg(AMPRunnerCfg):
+    num_steps_per_env = 24
+    max_iterations = 10000
+    save_interval = 500
+    experiment_name = "g1_track"
+    empirical_normalization = True
+    policy = RslRlPpoActorCriticCfg(
+        init_noise_std=1.0,
+        actor_hidden_dims=[512, 256, 128],
+        critic_hidden_dims=[512, 256, 128],
+        activation="elu",
+    )
+    algorithm = AMPPPOAlgorithmCfg(
+        class_name="AMPPPO",
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.005,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+    )
+    amp_data = MotionDatasetCfg(
+        motion_files=[],
+        body_names = g1_key_body_names,
+        anchor_name = g1_anchor_name,
+        amp_obs_terms = None,
+    )
+    amp_discr_hidden_dims = [256, 256]
+    amp_reward_coef = 0.5
+    amp_task_reward_lerp = 0.7
+
+class G1FlatAMPHardTrackCfg(G1FlatAMPRunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.amp_data.amp_obs_terms = AMPObsHardTrackTerms
+        self.run_name = "amp_hard"
+        self.amp_data.motion_files = [amp_task_demo_data_cfg.file_soccer_shoot]
