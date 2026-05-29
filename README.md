@@ -1,8 +1,15 @@
-# beyondAMP: One-Step Integration of AMP into IsaacLab
+# beyondAMP: One-Step Integration of AMP into IsaacLab & mjlab
 
 ## Overview
 
-**beyondAMP** provides a unified pipeline to integrate Adversarial Motion Priors (AMP) into any IsaacLab robot setup, with minimal modifications and full compatibility with custom robot designs. [中文README](./README_cn.md)
+**beyondAMP** provides a unified pipeline to integrate Adversarial Motion Priors (AMP) into any IsaacLab robot setup, with minimal modifications and full compatibility with custom robot designs. The same AMP machinery (discriminator, motion dataset, observation groups, on-policy runner) is also available against the [mjlab](https://github.com/mujocolab/mjlab) (MuJoCo-Warp) backend — see [mjlab Backend](#-mjlab-backend) below. [中文README](./README_cn.md)
+
+**Supported backends:**
+
+| Backend | Tasks package | Train entry | Reference task |
+| :--- | :--- | :--- | :--- |
+| IsaacLab (PhysX) | `source/amp_tasks` | `scripts/factoryIsaac/train.py` | `beyondAMP-DemoPunch-G1-BasicAMP` |
+| mjlab (MuJoCo-Warp) | `source/amp_tasks_mjlab` | `scripts/factoryMjlab/train.py` | `Mjlab-AMP-Velocity-Flat-Unitree-G1` |
 
 ## 🚀 Fast Setup
 
@@ -63,6 +70,42 @@ With these tools, the dataset organization naturally aligns with the conventions
 * Default transition builder: `source/beyondAMP/beyondAMP/amp_obs.py`
 
 > For full tutorial and customization, see `docs/tutorial.md`.
+
+## 🧩 mjlab Backend
+
+beyondAMP also ships an [mjlab](https://github.com/mujocolab/mjlab)-backed pipeline that mirrors the IsaacLab path. mjlab adopts IsaacLab's manager-based API on top of MuJoCo-Warp, so the AMP discriminator, motion dataset, and on-policy runner are reused — only the env wrapper and observation hooks differ.
+
+### Layout
+
+| Path | Purpose |
+| :--- | :--- |
+| `source/amp_tasks_mjlab/` | mjlab-side AMP task package (registers `Mjlab-AMP-*` tasks) |
+| `source/beyondAMP/beyondAMP/mjlab/` | mjlab-specific obs groups, mdp helpers, and rsl_rl wrappers |
+| `scripts/factoryMjlab/` | Training entry point for mjlab AMP tasks (see its [README](scripts/factoryMjlab/README.md)) |
+
+### Install
+
+`scripts/setup_ext.sh` currently installs the IsaacLab task package only. For the mjlab backend, additionally install:
+
+```bash
+pip install mjlab                       # MuJoCo-Warp backend
+pip install -e source/amp_tasks_mjlab   # registers Mjlab-AMP-* tasks
+```
+
+### Train
+
+```bash
+uv run python scripts/factoryMjlab/train.py \
+    Mjlab-AMP-Velocity-Flat-Unitree-G1 \
+    --agent.amp-data.motion-files data/demo/punch_000.npz
+```
+
+Tasks are looked up via `mjlab.tasks.registry`; the env is wrapped with `beyondAMP.mjlab.rsl_rl.AMPEnvWrapper` and trained with `rsl_rl_amp.runners.AMPOnPolicyRunner`. Registered out of the box:
+
+* `Mjlab-AMP-Velocity-Flat-Unitree-G1`
+* `Mjlab-AMP-Velocity-Rough-Unitree-G1`
+
+To add your own mjlab AMP task, follow the pattern in `source/amp_tasks_mjlab/amp_tasks_mjlab/velocity/g1/__init__.py` and call `register_mjlab_task(..., runner_cls=None)` (the AMP wrapper replaces mjlab's stock `RslRlVecEnvWrapper`).
 
 
 <details>
