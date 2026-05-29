@@ -122,7 +122,7 @@ class AMPOnPolicyRunner:
                     next_amp_obs_with_term[reset_env_ids] = terminal_amp_states
 
                     lerp_rewards, d_logits, amp_rewards = self.alg.discriminator.predict_amp_reward(
-                        amp_obs, next_amp_obs_with_term, rewards, normalizer=self.alg.amp_normalizer)[0]
+                        amp_obs, next_amp_obs_with_term, rewards, normalizer=self.alg.amp_normalizer)
                     amp_obs = torch.clone(next_amp_obs)
                     self.alg.process_env_step(lerp_rewards, dones, infos, next_amp_obs_with_term)
                     
