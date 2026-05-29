@@ -176,18 +176,25 @@ class AMPOnPolicyRunner:
 
         ep_string = f''
         if locs['ep_infos']:
-            for key in locs['ep_infos'][0]:
+            # Collect all keys across all ep_info dicts (they may differ).
+            all_keys: set[str] = set()
+            for ep_info in locs['ep_infos']:
+                all_keys.update(ep_info.keys())
+            for key in sorted(all_keys):
                 infotensor = torch.tensor([], device=self.device)
                 for ep_info in locs['ep_infos']:
+                    if key not in ep_info:
+                        continue
                     # handle scalar and zero dimensional tensor infos
                     if not isinstance(ep_info[key], torch.Tensor):
                         ep_info[key] = torch.Tensor([ep_info[key]])
                     if len(ep_info[key].shape) == 0:
                         ep_info[key] = ep_info[key].unsqueeze(0)
                     infotensor = torch.cat((infotensor, ep_info[key].to(self.device)))
-                value = torch.mean(infotensor)
-                self.writer.add_scalar('Episode/' + key, value, locs['it'])
-                ep_string += f"""{f'Mean episode {key}:':>{pad}} {value:.4f}\n"""
+                if infotensor.numel() > 0:
+                    value = torch.mean(infotensor)
+                    self.writer.add_scalar('Episode/' + key, value, locs['it'])
+                    ep_string += f"""{f'Mean episode {key}:':>{pad}} {value:.4f}\n"""
         mean_std = self.alg.actor_critic.std.mean()
         fps = int(self.num_steps_per_env * self.env.num_envs / (locs['collection_time'] + locs['learn_time']))
 
