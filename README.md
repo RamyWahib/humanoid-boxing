@@ -63,6 +63,35 @@ With these tools, the dataset organization naturally aligns with the conventions
 >   * **GMR** for retargeted motion
 >   * **TrackerLab** for FK validation & robot-specific preprocessing
 
+### G1 Punch-Hit Task (custom, on top of beyondAMP)
+
+Built on the beyondAMP/IsaacLab pipeline above, `source/amp_tasks/amp_tasks/others/g1_punch_hit/` trains a Unitree G1 to punch a target sphere, comparing a pure-PPO policy against an AMP-regularized one.
+
+* Env + task config: `g1_punch_amp_only_env_cfg.py`
+* Punch command (target sampling, hit detection, sphere visualization): `mdp/commands.py`
+* Rewards, including the punch-efficiency term: `mdp/rewards.py`
+* Registered tasks: `beyondAMP-PunchHitTask-G1-PPO` (pure RL) and `beyondAMP-PunchHitTask-G1-AMPBasic` (AMP)
+
+The `punch_efficiency_penalty` reward (`mdp/rewards.py`) penalizes hand speed outside the punch-action time window, so the policy learns to keep the arm still between punches instead of flailing for free reward.
+
+Train both policies:
+```bash
+python scripts/factoryIsaac/train.py --task beyondAMP-PunchHitTask-G1-PPO --headless
+python scripts/factoryIsaac/train.py --task beyondAMP-PunchHitTask-G1-AMPBasic --headless
+```
+
+Resume training for more iterations from a checkpoint:
+```bash
+python scripts/factoryIsaac/train.py --task beyondAMP-PunchHitTask-G1-PPO --resume --checkpoint <path/to/model_N.pt> --headless
+```
+
+Play a trained checkpoint (always cap `--num_envs` for GUI playback, or the scene will try to render the full training env count and appear to freeze):
+```bash
+python scripts/factoryIsaac/play.py --target logs/rsl_rl/g1_punch_hit/<run_name>/model_<iter>.pt --num_envs 1
+```
+
+Trained checkpoints live under `logs/rsl_rl/g1_punch_hit/<timestamp>_<ppo|amp>/model_<iteration>.pt`.
+
 ### AMP Integration Details
 
 * AMP observation group added via a new `amp` observation config
