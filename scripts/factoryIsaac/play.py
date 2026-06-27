@@ -96,7 +96,18 @@ def main():
 
     env_cfg.sim.device = args_cli.device
     env_cfg.seed = args_cli.seed
-    # env_cfg.commands.punch_command.debug_vis = True
+    env_cfg.commands.punch_command.debug_vis = False
+    env_cfg.commands.punch_command.ranges.pos_x = (0.4, 0.8)
+    env_cfg.commands.punch_command.ranges.pos_y = (-0.3, 0.3)
+    env_cfg.commands.punch_command.ranges.pos_z = (0.14, 0.54)
+
+    # Remove the old kinematic sphere if this came from a pickled config
+    # (visualization is now handled by VisualizationMarkers inside UniformPunchCommand)
+    if hasattr(env_cfg.scene, "punch_target"):
+        try:
+            delattr(env_cfg.scene, "punch_target")
+        except AttributeError:
+            env_cfg.scene.punch_target = None
 
     from isaaclab.envs.common import ViewerCfg
     
@@ -105,7 +116,7 @@ def main():
         eye = (4.0, 4.0, 4.0),
         # eye = (0.0, 0.0, 10.0),
         lookat = (0.0, 0.0, 0.0),
-        env_index = 20,
+        env_index = 0,
         origin_type = "asset_root",
         # origin_type = "env",
         asset_name = "robot",

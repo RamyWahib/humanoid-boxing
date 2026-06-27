@@ -72,3 +72,10 @@ def punch_post_hit_stability_reward(
     raw = punch_post_hit_stability_reward_raw(env, command_name, asset_name)
     command: "UniformPunchCommand" = env.command_manager.get_term(command_name)
     return (raw * command.is_post_action.float()).reshape(-1)
+
+def punch_efficiency_penalty(env, command_name):
+    cmd = env.command_manager.get_term(command_name)
+    hand_speed = torch.norm(cmd.hand_lin_vel_w, dim=-1)
+    # only penalise motion when NOT in the action window
+    idle = (~cmd.is_punch_action_time).float()
+    return -(hand_speed * idle).reshape(-1)

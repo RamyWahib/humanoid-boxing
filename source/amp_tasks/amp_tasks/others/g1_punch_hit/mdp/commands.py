@@ -6,6 +6,7 @@ from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.assets import Articulation
 from isaaclab.utils.math import quat_apply, quat_apply_inverse
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+import isaaclab.sim as sim_utils
 from isaaclab.markers.config import FRAME_MARKER_CFG
 
 class UniformPunchCommand(CommandTerm):
@@ -40,6 +41,20 @@ class UniformPunchCommand(CommandTerm):
         self._is_pre_action = torch.ones((self.num_envs, ), device=self.device).bool()
         self._is_post_action = torch.zeros((self.num_envs, ), device=self.device).bool()
 
+        # always create a fresh sphere visualizer — never use the pickled cfg which may be stale
+        if not hasattr(self, "goal_pose_visualizer"):
+            _sphere_cfg = VisualizationMarkersCfg(
+                prim_path="/Visuals/Command/punch_target",
+                markers={
+                    "target": sim_utils.SphereCfg(
+                        radius=0.08,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
+                    ),
+                },
+            )
+            self.goal_pose_visualizer = VisualizationMarkers(_sphere_cfg)
+            self.goal_pose_visualizer.set_visibility(True)
+
     # --------------------------------------------------------------------- #
     # Sampling
     # --------------------------------------------------------------------- #
@@ -48,10 +63,11 @@ class UniformPunchCommand(CommandTerm):
         """Sample a new punch command."""
         cfg = self.cfg.ranges
 
-        # target position in base frame
-        self._p_target_b[env_ids, 0].uniform_(*cfg.pos_x)
-        self._p_target_b[env_ids, 1].uniform_(*cfg.pos_y)
-        self._p_target_b[env_ids, 2].uniform_(*cfg.pos_z)
+        # target position in base frame (must assign back — advanced indexing returns a copy)
+        n = len(env_ids)
+        self._p_target_b[env_ids, 0] = torch.empty(n, device=self.device).uniform_(*cfg.pos_x)
+        self._p_target_b[env_ids, 1] = torch.empty(n, device=self.device).uniform_(*cfg.pos_y)
+        self._p_target_b[env_ids, 2] = torch.empty(n, device=self.device).uniform_(*cfg.pos_z)
 
         # base (anchor) pose in world
         base_pos_w = self.robot.data.root_pos_w[env_ids]        # (N, 3)
@@ -81,12 +97,11 @@ class UniformPunchCommand(CommandTerm):
         """
         self._elapsed_time += self._env.sim.cfg.dt
 
-        if self.cfg.update_base_frame_target:
-            # recompute target in current base frame from fixed world target
-            base_pos_w = self.robot.data.root_pos_w        # (N, 3)
-            base_quat_w = self.robot.data.root_quat_w      # (N, 4)
-            self._p_target_b = quat_apply_inverse(base_quat_w, self._p_target_w - base_pos_w)
-        
+        # always recompute world target from fresh robot state so _p_target_w is never stale
+        base_pos_w = self.robot.data.root_pos_w
+        base_quat_w = self.robot.data.root_quat_w
+        self._p_target_w = quat_apply(base_quat_w, self._p_target_b) + base_pos_w
+
         # update time-based flags
         t = self._elapsed_time.squeeze(-1)
         self._is_punch_action_time = (
@@ -103,6 +118,12 @@ class UniformPunchCommand(CommandTerm):
         self._is_post_action = t > self.cfg.ranges.punch_action_time_range[1]
         
         self._update_hit_info()
+
+        # update the visualization marker to the current world-frame target
+        if hasattr(self, "goal_pose_visualizer"):
+            q_id = torch.zeros((self.num_envs, 4), device=self.device)
+            q_id[:, 0] = 1.0
+            self.goal_pose_visualizer.visualize(self._p_target_w, q_id)
 
     def _update_metrics(self):
         # compute hand-to-target position error
@@ -266,7 +287,7 @@ class UniformPunchCommandCfg(CommandTermCfg):
 
         pos_x: tuple[float, float] = (0.4, 0.8)
         pos_y: tuple[float, float] = (-0.3, 0.3)
-        pos_z: tuple[float, float] = (0.9, 1.3)
+        pos_z: tuple[float, float] = (0.14, 0.54)
         
         # Action execution window (when punch-like motion is allowed)
         punch_action_time_range: tuple[float, float] = (0.0, 1.1)
@@ -280,8 +301,14 @@ class UniformPunchCommandCfg(CommandTermCfg):
     visualize: bool = True
     """Whether to visualize punch target."""
 
-    goal_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/punch_target"
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
+        prim_path="/Visuals/Command/punch_target",
+        markers={
+            "target": sim_utils.SphereCfg(
+                radius=0.08,
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.1, 0.1)),
+            ),
+        },
     )
     current_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(
         prim_path="/Visuals/Command/hand_pose"

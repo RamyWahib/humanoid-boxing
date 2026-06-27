@@ -6,7 +6,7 @@ from . import general
 @configclass
 class G1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 10000
+    max_iterations = 30000
     save_interval = 500
     experiment_name = general.experiment_name
     run_name = "ppo"
